@@ -30,15 +30,18 @@ def test_assigned_manager_can_approve(client):
 
 
 def test_different_authenticated_user_cannot_approve(client):
+    # SF-ADR-004: an unrelated actor receives 404, not 403, so existence is not disclosed.
     request_id = submit(client)
     denied = client.post(f"/requests/{request_id}/approve", auth=auth("charlie"))
-    assert denied.status_code == 403
+    assert denied.status_code == 404
     assert client.get(f"/requests/{request_id}", auth=auth("alice")).json()["status"] == "pending"
 
 
-def test_requester_cannot_self_approve(client):
-    request_id = submit(client, manager="alice")
+def test_requester_cannot_approve_own_request(client):
+    # The requester already knows the request exists, so 403 discloses nothing new.
+    request_id = submit(client, requester="alice", manager="bob")
     assert client.post(f"/requests/{request_id}/approve", auth=auth("alice")).status_code == 403
+    assert client.get(f"/requests/{request_id}", auth=auth("bob")).json()["status"] == "pending"
 
 
 def test_missing_and_wrong_password_rejected(client):
@@ -56,8 +59,8 @@ def test_double_approval_is_conflict(client):
 
 def test_unrelated_actor_cannot_read_request_or_audit(client):
     request_id = submit(client)
-    assert client.get(f"/requests/{request_id}", auth=auth("charlie")).status_code == 403
-    assert client.get(f"/requests/{request_id}/audit", auth=auth("charlie")).status_code == 403
+    assert client.get(f"/requests/{request_id}", auth=auth("charlie")).status_code == 404
+    assert client.get(f"/requests/{request_id}/audit", auth=auth("charlie")).status_code == 404
 
 
 def test_unknown_manager_rejected(client):
@@ -87,5 +90,7 @@ def test_sqlite_survives_app_recreation(client, users, database):
     assert response.json()["requester"] == "alice"
 
 
-def test_unknown_request_does_not_leak(client):
+def test_unknown_request_returns_404(client):
+    # Renamed from test_unknown_request_does_not_leak: it only checks the 404 status.
+    # Non-disclosure is asserted by test_unrelated_actor_response_matches_nonexistent below.
     assert client.post("/requests/nonexistent/approve", auth=auth("bob")).status_code == 404

@@ -8,6 +8,8 @@ import hmac
 import os
 import secrets
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
@@ -56,10 +58,33 @@ def create_app(db_path: str | Path | None = None, users: dict[str, str] | None =
     database = str(db_path or os.environ.get("SERVICEFLOW_DB", "serviceflow.sqlite3"))
     accounts = users if users is not None else {}
 
-    def connection() -> sqlite3.Connection:
+    @contextmanager
+    def connection() -> Iterator[sqlite3.Connection]:
+        """Open a connection, roll back any open transaction on error, always close.
+
+        sqlite3.Connection's own context manager commits or rolls back but never
+        closes the connection, which leaked one connection per request (SF-WP-004 A).
+        """
         conn = sqlite3.connect(database, timeout=10, isolation_level=None)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+        except BaseException:
+            if conn.in_transaction:
+                conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    # SF-ADR-004: unrelated actors get exactly the same response as for a missing request.
+    def not_found() -> HTTPException:
+        return HTTPException(404, "Request not found")
+
+    def load_for_participant(db: sqlite3.Connection, request_id: str, who: str) -> sqlite3.Row:
+        row = db.execute("SELECT * FROM requests WHERE id=?", (request_id,)).fetchone()
+        if row is None or who not in (row["requester"], row["assigned_manager"]):
+            raise not_found()
+        return row
 
     with connection() as db:
         db.executescript(
@@ -107,6 +132,9 @@ def create_app(db_path: str | Path | None = None, users: dict[str, str] | None =
     def create_request(body: NewRequest, who: str = Depends(actor)) -> RequestView:
         if body.assigned_manager not in accounts:
             raise HTTPException(422, "Assigned manager does not exist")
+        if body.assigned_manager == who:
+            # SF-DEC-004B: a self-assigned request could never be approved.
+            raise HTTPException(422, "Assigned manager cannot be the requester")
         request_id = str(uuid4())
         with connection() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -125,21 +153,16 @@ def create_app(db_path: str | Path | None = None, users: dict[str, str] | None =
     @app.get("/requests/{request_id}", response_model=RequestView)
     def get_request(request_id: str, who: str = Depends(actor)) -> RequestView:
         with connection() as db:
-            row = db.execute("SELECT * FROM requests WHERE id=?", (request_id,)).fetchone()
-        if row is None:
-            raise HTTPException(404, "Request not found")
-        if who not in (row["requester"], row["assigned_manager"]):
-            raise HTTPException(403, "Not permitted to view request")
+            row = load_for_participant(db, request_id, who)
         return present(row)
 
     @app.post("/requests/{request_id}/approve", response_model=RequestView)
     def approve(request_id: str, who: str = Depends(actor)) -> RequestView:
         with connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT * FROM requests WHERE id=?", (request_id,)).fetchone()
-            if row is None:
-                db.rollback()
-                raise HTTPException(404, "Request not found")
+            row = load_for_participant(db, request_id, who)  # connection() rolls back on raise
+            # Participants already know the request exists, so 403 discloses nothing new.
+            # The requester check is kept as a defence against legacy self-assigned rows.
             if who != row["assigned_manager"] or who == row["requester"]:
                 db.rollback()
                 raise HTTPException(403, "Not permitted to approve request")
@@ -164,11 +187,7 @@ def create_app(db_path: str | Path | None = None, users: dict[str, str] | None =
     @app.get("/requests/{request_id}/audit")
     def request_audit(request_id: str, who: str = Depends(actor)) -> list[dict[str, str]]:
         with connection() as db:
-            row = db.execute("SELECT * FROM requests WHERE id=?", (request_id,)).fetchone()
-            if row is None:
-                raise HTTPException(404, "Request not found")
-            if who not in (row["requester"], row["assigned_manager"]):
-                raise HTTPException(403, "Not permitted to view audit")
+            load_for_participant(db, request_id, who)
             events = db.execute(
                 "SELECT actor,action,created_at FROM audit_events WHERE request_id=? ORDER BY id",
                 (request_id,),

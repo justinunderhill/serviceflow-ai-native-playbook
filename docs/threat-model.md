@@ -7,8 +7,12 @@ Risks and controls:
 - Impersonation: passwords are checked server-side against salted PBKDF2 hashes
   in the local reference. HTTPS and an identity provider are still missing.
 - Broken object-level authorisation: the API loads assignment from persisted
-  request data and tests that unrelated actors receive HTTP 403.
-- Self-approval: explicit requester != actor check in approval endpoint.
+  request data and tests that unrelated actors are refused.
+- Existence disclosure: non-participants receive the same 404 status and body
+  for an existing request as for a missing one (SF-ADR-004). Response timing is
+  not equalised or measured.
+- Self-approval: self-assigned requests are rejected at creation (HTTP 422), and
+  the approval endpoint keeps an explicit requester != actor check for legacy data.
 - Duplicate writes: SQLite BEGIN IMMEDIATE and pending-status condition.
 - Audit exposure: only request participants can fetch that request's events.
 - Malicious agent behaviour: agent guidance is advisory; repository rulesets,
