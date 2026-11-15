@@ -18,6 +18,13 @@ packages = ["serviceflow"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+# Fail on any resource leak, such as an unclosed SQLite connection. Leaks found
+# during garbage collection surface as PytestUnraisableExceptionWarning.
+# Other warnings (e.g. third-party deprecations) are still shown but do not fail.
+filterwarnings = [
+    "error::ResourceWarning",
+    "error::pytest.PytestUnraisableExceptionWarning",
+]
 
 [tool.ruff]
 line-length = 100
