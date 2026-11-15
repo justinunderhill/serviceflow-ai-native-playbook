@@ -17,6 +17,8 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel, Field
 
+from serviceflow import __version__
+
 
 class NewRequest(BaseModel):
     title: str = Field(min_length=3, max_length=120)
@@ -54,7 +56,7 @@ def password_matches(password: str, stored: str) -> bool:
 
 def create_app(db_path: str | Path | None = None, users: dict[str, str] | None = None) -> FastAPI:
     """Users values must be PBKDF2 hashes; no plaintext passwords stored in app."""
-    app = FastAPI(title="ServiceFlow Reference API", version="0.3.0")
+    app = FastAPI(title="ServiceFlow Reference API", version=__version__)
     database = str(db_path or os.environ.get("SERVICEFLOW_DB", "serviceflow.sqlite3"))
     accounts = users if users is not None else {}
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "serviceflow-reference"
-version = "0.3.0"
+version = "1.0.0"
 description = "Educational AI-native engineering companion to Justin Underhill's playbook"
 requires-python = ">=3.11"
 dependencies = ["fastapi>=0.110,<1", "uvicorn>=0.28,<1", "pydantic>=2,<3"]
