@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "serviceflow-reference"
-version = "0.3.0"
+version = "1.0.0"
 description = "Educational AI-native engineering companion to Justin Underhill's playbook"
 requires-python = ">=3.11"
 dependencies = ["fastapi>=0.110,<1", "uvicorn>=0.28,<1", "pydantic>=2,<3"]
@@ -18,6 +18,13 @@ packages = ["serviceflow"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+# Fail on any resource leak, such as an unclosed SQLite connection. Leaks found
+# during garbage collection surface as PytestUnraisableExceptionWarning.
+# Other warnings (e.g. third-party deprecations) are still shown but do not fail.
+filterwarnings = [
+    "error::ResourceWarning",
+    "error::pytest.PytestUnraisableExceptionWarning",
+]
 
 [tool.ruff]
 line-length = 100

@@ -1,36 +1,74 @@
-# ServiceFlow | AI-Native Software Development Playbook companion
+# ServiceFlow — AI-Native Software Development Playbook companion
 
-**An educational, runnable reference** for the fictional request-approval workflow discussed in *The AI-Native Software Development Playbook* by Justin Underhill (First Edition, November 2026).
+[![ServiceFlow checks](https://github.com/justinunderhill/serviceflow-ai-native-playbook/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/justinunderhill/serviceflow-ai-native-playbook/actions/workflows/ci.yml)
 
-The core rule: **authentication is not authorisation**. Only the assigned manager may approve a request, and the requester may not approve their own request. Negative tests enforce this rule.
+A small, runnable FastAPI service that accompanies *The AI-Native Software
+Development Playbook* by [Justin Underhill](https://www.justinunderhill.com/).
+It shows one rule in working code: **authentication is not authorisation**.
+Only the assigned manager may approve a request, the requester may never
+approve their own, and negative tests prove it.
 
-## Run locally
+It is an educational reference, not production software (see
+[Limitations](#limitations)).
 
-Use Python 3.11+. Install using `uv sync --extra dev`, then start the local-only demo:
+## Prerequisites
+
+- Python 3.11 or newer (CI tests 3.11, 3.12 and 3.13)
+- [uv](https://docs.astral.sh/uv/)
+
+## Install and run
 
 ```bash
+uv sync --locked --extra dev
 uv run uvicorn serviceflow.demo:app --host 127.0.0.1 --reload
 ```
 
-Open http://127.0.0.1:8000/docs. Disposable demo users `alice`, `bob`, and `charlie` all have password `local-demo-only`. Never deploy these credentials.
+Open http://127.0.0.1:8000/docs. The disposable local users `alice`, `bob`
+and `charlie` share the password `local-demo-only`. Never deploy them.
+
+## Verify
 
 ```bash
-uv run pytest -q
-uv run ruff check .
+uv run --locked --extra dev ruff check .
+uv run --locked --extra dev python -X dev -m pytest -q
 ```
 
-## What is included
+Tests fail on any resource leak, such as an unclosed database connection.
+The same checks run in CI as the required `validate` check.
 
-- FastAPI request creation, retrieval, assigned-manager approval, and restricted audit viewing.
-- PBKDF2-hashed demo credentials with HTTP Basic authentication (local demonstration only).
-- SQLite persistence and atomic approval operations.
-- Positive and negative authorisation tests and a GitHub Actions workflow.
-- Shared agent instructions in [AGENTS.md](AGENTS.md), [requirements](docs/requirements.md), [ADR SF-ADR-003](docs/adr/003-approval-authorisation.md), [threat model](docs/threat-model.md), [agent setup](docs/coding-agent-setup.md), and [PR evidence template](docs/example-pr-evidence.md).
+## Behaviour
 
-## Critical limitations
+| Situation | Response |
+|---|---|
+| Not signed in | 401 |
+| Request does not exist, or caller is not involved | 404 (identical) |
+| Requester tries to approve their own request | 403 |
+| Assigned manager approves a pending request | 200 |
+| Approving again | 409 |
+| Assigning a request to yourself | 422 |
 
-This is **not production ready**. HTTP Basic requires TLS over a network; the app lacks real identity-provider integration, password recovery, rate limits, account lifecycle, distributed audit, production operations and resilience safeguards. Do not expose `serviceflow.demo` publicly. An agent's instructions do not enforce access control: API checks, tests, CI and GitHub rulesets must do that.
+## Design and evidence
 
-The sample PR evidence document is illustrative, **not a recorded autonomous-agent session**. No production performance claims are made.
+- [Requirements](docs/requirements.md) and [threat model](docs/threat-model.md)
+- Decisions: [SF-ADR-003](docs/adr/003-approval-authorisation.md) (approval
+  authorisation), [SF-ADR-004](docs/adr/004-resource-existence-disclosure.md)
+  (existence disclosure)
+- Work packets: [SF-WP-004](docs/work-packets/sf-wp-004.md),
+  [SF-WP-005](docs/work-packets/sf-wp-005.md); SF-WP-004 evidence is in
+  [PR #3](https://github.com/justinunderhill/serviceflow-ai-native-playbook/pull/3)
+- Working with coding agents: [AGENTS.md](AGENTS.md),
+  [agent setup](docs/coding-agent-setup.md), [CI governance](docs/ci-governance.md)
+- [Release notes](docs/releases/v1.0.0.md) and [release checklist](docs/release-checklist.md)
 
-The code is licensed under MIT. The book, portrait and brand assets are excluded from that licence.
+## Limitations
+
+Local HTTP Basic authentication over plain HTTP, disposable demo accounts and
+single-process SQLite. There is no identity provider, TLS, rate limiting,
+account lifecycle, central audit store, migrations or monitoring, and response
+timing is not equalised. Run it on localhost only. Agent instructions guide
+behaviour but enforce nothing; the API, tests, CI and branch rules do.
+
+## Licence
+
+Code: [MIT](LICENSE). The book, the author's portrait and brand assets are not
+part of this repository or its licence.
