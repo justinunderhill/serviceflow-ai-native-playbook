@@ -9,7 +9,8 @@ tests/test_approval.py and threat model.
 **Allowed changes:** App and tests only on a separate review branch.
 No permission, CI, deployment or credential changes.
 
-**Acceptance evidence:** A negative authorisation test returns 403 without
+**Acceptance evidence:** A negative authorisation test is refused (404 for an
+unrelated manager, 403 for the requester, per SF-ADR-004) without
 changing pending state, the assigned manager succeeds, and all tests pass.
 
 **Completion:** List changed files, tests actually run, outcomes, assumptions,
