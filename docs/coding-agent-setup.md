@@ -19,5 +19,5 @@ repository settings.
 6. Independently confirm tests in hosted CI and obtain human review.
 
 Avoid committing personal configuration, broad agent tool allowlists, secrets
-or speculative tool commands. The supporting multi-agent handout is a
-time-sensitive operational reference, not a substitute for official manuals.
+or speculative tool commands. Tool behaviour changes between versions, so check
+each agent's official documentation rather than relying on copied commands.
