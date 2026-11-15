@@ -89,3 +89,17 @@ def test_sqlite_survives_app_recreation(client, users, database):
 
 def test_unknown_request_does_not_leak(client):
     assert client.post("/requests/nonexistent/approve", auth=auth("bob")).status_code == 404
+
+
+def test_denied_approval_does_not_write_audit_event(client):
+    """Rejecting an unrelated actor must preserve state and its audit trail."""
+    request_id = submit(client)
+    url = f"/requests/{request_id}/approve"
+    before = client.get(f"/requests/{request_id}/audit", auth=auth("alice")).json()
+    denied = client.post(url, auth=auth("charlie"))
+    after = client.get(f"/requests/{request_id}/audit", auth=auth("alice")).json()
+    current = client.get(f"/requests/{request_id}", auth=auth("alice")).json()
+    assert denied.status_code == 403
+    assert current["status"] == "pending"
+    assert after == before
+    assert [event["action"] for event in after] == ["created"]
