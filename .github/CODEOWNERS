@@ -1,0 +1,4 @@
+# Add independent maintainers once available. A code owner cannot approve their own PR.
+/serviceflow/app.py @justinunderhill
+/tests/ @justinunderhill
+/.github/workflows/ @justinunderhill
